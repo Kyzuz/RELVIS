@@ -1,98 +1,177 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, FlatList } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
+import * as SQLite from 'expo-sqlite';
+import { genererExportCSV } from '../utils/exporterCSV'; 
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+// Structure temporaire pour visualiser la liste des projets
+const PROJETS_TEMPORAIRES = [
+   { id: '1', nom_client: 'Usine Nord - Chaufferie', date: '2026-02-10' },
+   { id: '2', nom_client: 'Tour de bureaux Centre-Ville', date: '2026-02-08' },
+];
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+   // Initialisation du routeur pour la navigation
+   const router = useRouter();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
-  );
+   // NOUVEAU : Création des tables SQLite au démarrage de l'application
+   useEffect(() => {
+      const initialiserBaseDeDonnees = async () => {
+         try {
+            const db = await SQLite.openDatabaseAsync('audit_terrain.db');
+            
+            // On s'assure que la table existe avant que l'utilisateur ne prenne une photo
+            await db.execAsync(`
+               CREATE TABLE IF NOT EXISTS Photo (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  observation_id INTEGER NOT NULL,
+                  chemin_uri_local TEXT NOT NULL,
+                  nom_fichier_export TEXT,
+                  date_prise TEXT
+               );
+            `);
+            console.log("Les tables de la base de données sont prêtes !");
+         } catch (erreur) {
+            console.error("Erreur lors de l'initialisation de SQLite :", erreur);
+         }
+      };
+
+      initialiserBaseDeDonnees();
+   }, []);   
+
+   return (
+      <View style={styles.container}>
+         <View style={styles.header}>
+            <Text style={styles.title}>RELVIS</Text>
+            <Text style={styles.subtitle}>Audits Énergétiques & Mécaniques</Text>
+         </View>
+
+         <TouchableOpacity style={styles.buttonNouveau}>
+            <Text style={styles.buttonText}>+ Nouvel visite de chantier</Text>
+         </TouchableOpacity>
+
+         <TouchableOpacity 
+            style={styles.buttonCamera}
+            onPress={() => router.push('/camera')}
+         >
+            <Text style={styles.buttonText}>Ouvrir l'appareil photo</Text>
+         </TouchableOpacity>
+
+         {/* NOUVEAU bouton pour la galerie */}
+         <TouchableOpacity 
+            style={styles.buttonGalerie}
+            onPress={() => router.push('/galerie')}
+         >
+            <Text style={styles.buttonText}>Voir les photos sauvegardées</Text>
+         </TouchableOpacity>
+
+         {/* Export CSV */}
+         <TouchableOpacity 
+            style={styles.buttonExport}
+            onPress={async () => {
+               const csv = await genererExportCSV();
+               if (csv) {
+                  // On affiche directement le contenu du CSV dans l'alerte !
+                  alert("Aperçu du CSV :\n\n" + csv);
+               } else {
+                  alert("Aucune donnée à exporter ou erreur.");
+               }
+            }}
+         >
+            <Text style={styles.buttonText}>Générer le rapport CSV</Text>
+         </TouchableOpacity>
+
+         <Text style={styles.sectionTitle}>Audits Récents</Text>
+         
+         <FlatList
+            data={PROJETS_TEMPORAIRES}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+               <View style={styles.card}>
+                  <Text style={styles.cardTitle}>{item.nom_client}</Text>
+                  <Text style={styles.cardDate}>{item.date}</Text>
+               </View>
+            )}
+         />
+      </View>
+   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+   container: {
+      flex: 1,
+      backgroundColor: '#F5F7FA',
+      padding: 20,
+   },
+   header: {
+      marginBottom: 30,
+      marginTop: 40,
+   },
+   title: {
+      fontSize: 32,
+      fontWeight: 'bold',
+      color: '#2C3E50',
+   },
+   subtitle: {
+      fontSize: 16,
+      color: '#7F8C8D',
+      marginTop: 5,
+   },
+   buttonNouveau: {
+      backgroundColor: '#3498DB',
+      padding: 15,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginBottom: 15,
+   },
+   buttonCamera: {
+      backgroundColor: '#2ECC71',
+      padding: 15,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginBottom: 30,
+   },
+   buttonText: {
+      color: 'white',
+      fontSize: 16,
+      fontWeight: '600',
+   },
+   sectionTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: '#2C3E50',
+      marginBottom: 15,
+   },
+   card: {
+      backgroundColor: 'white',
+      padding: 15,
+      borderRadius: 8,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: '#E0E6ED',
+   },
+   cardTitle: {
+      fontSize: 16,
+      fontWeight: '500',
+      color: '#34495E',
+   },
+   cardDate: {
+      fontSize: 14,
+      color: '#95A5A6',
+      marginTop: 4,
+   },
+   buttonGalerie: {
+      backgroundColor: '#8E44AD', // Un violet distinctif
+      padding: 15,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginBottom: 30,
+   },
+   buttonExport: {
+      backgroundColor: '#E67E22', // Une couleur orange pour l'action d'export
+      padding: 15,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginBottom: 30,
+   },
 });
